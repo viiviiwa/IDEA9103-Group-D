@@ -4,11 +4,11 @@ let segmentsBG = [], segmentsFG = [];
 const Geometry = Object.freeze({ RECT:0, DIAMOND:1, TRI:2, STRIPE:3, HEX:4, CIRCLE:5 });
 
 const CFG = {
-  bgURL: '..//assets/bull_bg.png',
-  fgURL: '..//assets/bull3.png',
+  bgURL: '..//assets/Bull_background.png',
+  fgURL: '..//assets/Bull_foreground.png',
 
   segBG: 80,
-  segFG: 30,
+  segFG: 40,
 
   BG: {
     geometry: Geometry.RECT,
