@@ -7,7 +7,7 @@ const CFG = {
   bgURL: '..//assets/bull_bg.png',
   fgURL: '..//assets/bull3.png',
 
-  segBG: 40,
+  segBG: 80,
   segFG: 30,
 
   BG: {
