@@ -214,4 +214,6 @@ function windowResized() {
   
   // redraw all layers
   drawAll();
+
+  assignAnimationParams();
 }
