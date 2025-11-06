@@ -1,217 +1,215 @@
-let bgImg, fgImg;
-let segmentsBG = [], segmentsFG = [];
+// ====================
+// 1. GLOBAL VARIABLES
+// ====================
 
-const Geometry = Object.freeze({ RECT:0, DIAMOND:1, TRI:2, STRIPE:3, HEX:4, CIRCLE:5 });
+// images setup
+let bgImg, bullImg;
 
-const CFG = {
-  bgURL: '..//assets/Bull_background.png',
-  fgURL: '..//assets/Bull_foreground.png',
+// segment setup for grid cells
+let bgSegments = [];
+let bullSegments = [];
 
-  segBG: 80,
-  segFG: 40,
+let gridSize = 100; // how many grid cells across and down
+let shapeSize = 1.0; // sie of each shape (multiplier)
+let backColor = 250; // backrgound colour (light grey)
 
-  BG: {
-    geometry: Geometry.RECT,
-    scale: [0.85, 1.20],
-    alpha: [255, 255],
-    rotate: true,
-    paletteClamp: false
-  },
-  FG: {
-    geometry: Geometry.CIRCLE,
-    scale: [0.95, 1.45],
-    alpha: [160, 230],
-    rotate: true,
-    paletteClamp: false
-  },
-
-  palette: ["#111014","#3ac3e9ff","#f6a21f","#f36ea1","#bba9ef","#8aa0e6"],
-
-  fgWhiteLumCutoff: 240,
-  fgWhiteDeltaCutoff: 18,
-
-  rotateRange: Math.PI/3,
-  paper: 250
-};
-
-let layout = { aspect: 0, w: 0, h: 0, x: 0, y: 0 };
-let showBG = true, showFG = true;
+// =====================================
+// 2. PRELOAD - load images before setup
+// =====================================
 
 function preload() {
-  bgImg = loadImage(CFG.bgURL);
-  fgImg = loadImage(CFG.fgURL);
+  bgImg = loadImage('bull_background.jpg'); // background link
+  bullImg = loadImage('bull_foreground.png'); // foreground link
 }
+
+// =========================
+// 3. SETUP - runs at start
+// =========================
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-  pixelDensity(1);
-  noLoop();
-
-  layout.aspect = bgImg.width / bgImg.height;
-  rebuildAll();
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-  rebuildAll();
-}
-
-function rebuildAll() {
-  computeLayout();
+  createCanvas(windowWidth, windowHeight); // full screen canvas
+  
+  // loading pixel data of both images to grab the sample colours
   bgImg.loadPixels();
-  fgImg.loadPixels();
-
-  segmentsBG = buildSegments(bgImg, CFG.segBG);
-  segmentsFG = buildSegments(fgImg, CFG.segFG, true);
-
-  renderOnce();
+  bullImg.loadPixels();
+  
+  // create data structures for grid
+  createBgSegments();
+  createBullSegments();
+  
+  // draw once when starting
+  drawAll();
 }
 
-function renderOnce() {
-  background(CFG.paper);
-  if (showBG) renderLayer(segmentsBG, bgImg, CFG.BG);
-  if (showFG) renderLayer(segmentsFG, fgImg, CFG.FG);
-}
+// ======================================================================
+// 4. CREATE BACKGROUND SEGMENTS - break background image into grid cells
+// ======================================================================
 
-class Segment {
-  constructor(r, c, cols, rows) {
-    this.r = r;
-    this.c = c;
-    this.cols = cols;
-    this.rows = rows;
-    this.x = 0; this.y = 0;
-    this.w = 0; this.h = 0;
-    this.cx = 0; this.cy = 0;
-    this.col = color(0);
-    this.isFG = false;
-  }
-
-  mapToCanvas() {
-    this.w = layout.w / this.cols;
-    this.h = layout.h / this.rows;
-    this.x = layout.x + this.c * this.w;
-    this.y = layout.y + this.r * this.h;
-    this.cx = this.x + this.w * 0.5;
-    this.cy = this.y + this.h * 0.5;
-  }
-}
-
-function buildSegments(srcImage, gridCount, asForeground=false) {
-  const segs = [];
-  const cols = gridCount;
-  const rows = gridCount * (srcImage.height/srcImage.width);
-
-  const cellW = srcImage.width / cols;
-  const cellH = srcImage.height / rows;
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const seg = new Segment(r, c, cols, rows);
-      seg.mapToCanvas();
-
-      const sx = floor((c + 0.5) * cellW);
-      const sy = floor((r + 0.5) * cellH);
-      const colArr = srcImage.get(constrain(sx,0,srcImage.width-1), constrain(sy,0,srcImage.height-1));
-      seg.col = color(colArr);
-
-      if (asForeground) {
-        seg.isFG = isForegroundPixel(colArr);
-        if (!seg.isFG) continue;
-      }
-      segs.push(seg);
+function createBgSegments() {
+  bgSegments = []; 
+  
+  // each cell's width over height in pixels of the image
+  let segmentWidth = bgImg.width / gridSize;
+  let segmentHeight = bgImg.height / gridSize;
+  
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      
+      // find the pixel roughly in the middle of each grid cell
+      let x = col * segmentWidth + segmentWidth / 2;
+      let y = row * segmentHeight + segmentHeight / 2;
+      
+      // sample pixel colour drom the image
+      let segmentColor = bgImg.get(x, y);
+      
+      // randomly pick between circle or square
+      let shapeType = floor(random(2));
+      
+      // stored data as one segment object
+      bgSegments.push({
+        row: row,
+        col: col,
+        color: segmentColor,
+        shape: shapeType
+      });
     }
   }
-  return segs;
 }
 
-function renderLayer(list, src, style) {
+// ======================================================================
+// 5. CREATE BULL SEGMENTS - break the foreground image into grid cells
+// ======================================================================
+
+function createBullSegments() {
+  bullSegments = [];
+
+  // each cell's width over height in pixels of the image
+  let segmentWidth = bullImg.width / gridSize;
+  let segmentHeight = bullImg.height / gridSize;
+  
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      
+      // find the pixel roughly in the middle of each grid cell
+      let x = col * segmentWidth + segmentWidth / 2;
+      let y = row * segmentHeight + segmentHeight / 2;
+      
+      // sample pixel colour drom the image
+      let segmentColor = bullImg.get(x, y);
+      
+      // randomly pick between circle or square
+      let shapeType = floor(random(2));
+      
+      // stored data as one segment object
+      bullSegments.push({
+        row: row,
+        col: col,
+        color: segmentColor,
+        shape: shapeType
+      });
+    }
+  }
+}
+
+// ======================================================================
+// 6. DRAW - p5.js main loop, background & bull foreground
+// ======================================================================
+
+function draw() {
+  drawAll();
+}
+
+function drawAll() {
+  background(backColor); // clear canvas each frame
+  drawBgPattern(); // draw geometric background
+  drawBullPattern(); // draw the bull foreground layer on top
+}
+
+// =============================
+// 7. DRAW - background pattern
+// =============================
+
+function drawBgPattern() {
+  noStroke(); // to make sure all shapes have no outline
+  let size = min(width, height); // keep square aspect ratio = no stretching
+  let startX = (width - size) / 2; // center horizontally
+  let startY = (height - size) / 2; // center vertically
+
+  // loop for each background segment
+  for (let i = 0; i < bgSegments.length; i++) {
+    let seg = bgSegments[i];
+    
+    let cellSize = size / gridSize;
+    let x = startX + (seg.col + 0.5) * cellSize;
+    let y = startY + (seg.row + 0.5) * cellSize;
+    
+    // shape size
+    let w = cellSize * shapeSize;
+    let h = cellSize * shapeSize;
+    
+    fill(seg.color); // fill colour grabbed from image palette
+    
+    // randomiser to pick between circle or suare
+    if (seg.shape == 0) {
+      ellipse(x, y, w, h);
+    } else {
+      rectMode(CENTER);
+      rect(x, y, w, h);
+    }
+  }
+}
+
+// =======================
+// 8. DRAW - bull pattern
+// =======================
+
+function drawBullPattern() {
   noStroke();
-  for (const s of list) {
-    let col = color(s.col);
-    if (style.paletteClamp) col = clampToPalette(col);
-    col.setAlpha(random(style.alpha[0], style.alpha[1]));
 
-    const sx = s.w * random(style.scale[0], style.scale[1]);
-    const sy = s.h * random(style.scale[0], style.scale[1]);
-
-    drawMark(style.geometry, s.cx, s.cy, sx, sy, col, style.rotate);
-  }
-}
-
-function drawMark(type, cx, cy, w, h, col, allowRotate) {
-  push();
-  translate(cx, cy);
-  if (allowRotate) rotate(random(-CFG.rotateRange, CFG.rotateRange));
-  fill(col);
-
-  switch (type) {
-    case Geometry.RECT:
+  // scales the bull image to fit the canvas with no stretch
+  let scale = min(width / bullImg.width, height / bullImg.height) * 0.8;
+  let patternWidth = bullImg.width * scale;
+  let patternHeight = bullImg.height * scale;
+  let startX = (width - patternWidth) / 2;
+  let startY = (height - patternHeight) / 2;
+  
+  // loops bull segments
+  for (let i = 0; i < bullSegments.length; i++) {
+    let seg = bullSegments[i];
+    
+    // scaled pattern calculated from each cell's position
+    let cellW = patternWidth / gridSize;
+    let cellH = patternHeight / gridSize;
+    let x = startX + (seg.col + 0.5) * cellW;
+    let y = startY + (seg.row + 0.5) * cellH;
+    
+    // shape size
+    let cellSize = min(cellW, cellH);
+    let w = cellSize * shapeSize;
+    let h = cellSize * shapeSize;
+ 
+    fill(seg.color);
+  
+    if (seg.shape == 0) {
+      ellipse(x, y, w, h);
+    } else {
       rectMode(CENTER);
-      rect(0, 0, w, h);
-      break;
-    case Geometry.DIAMOND:
-      rectMode(CENTER);
-      rotate(Math.PI/4);
-      rect(0, 0, w, h);
-      break;
-    case Geometry.TRI:
-      const hw = w*0.5, hh = h*0.5;
-      triangle(-hw, hh, 0, -hh, hw, hh);
-      break;
-    case Geometry.STRIPE:
-      rectMode(CENTER);
-      rect(0, 0, w, h*0.35);
-      erase(); triangle(-w*0.3, 0, 0, -h*0.25, w*0.3, 0); noErase();
-      break;
-    case Geometry.HEX:
-      polygon(0, 0, min(w,h)*0.5, 6);
-      break;
-    case Geometry.CIRCLE:
-      ellipseMode(CENTER);
-      ellipse(0, 0, w, h);
-      break;
+      rect(x, y, w, h);
+    }
   }
-  pop();
 }
 
-function polygon(x, y, r, n) {
-  beginShape();
-  for (let i = 0; i < n; i++) {
-    const a = TWO_PI * i / n;
-    vertex(x + r*cos(a), y + r*sin(a));
-  }
-  endShape(CLOSE);
-}
+// ===============================================================
+// 9. RESPONSIVENESS - redraw everything when window size changes
+// ===============================================================
 
-function isForegroundPixel(rgb) {
-  const [r,g,b] = rgb;
-  const lum = 0.2126*r + 0.7152*g + 0.0722*b;
-  const spread = Math.max(r,g,b) - Math.min(r,g,b);
-  const nearWhite = (lum >= CFG.fgWhiteLumCutoff) && (spread <= CFG.fgWhiteDeltaCutoff);
-  return !nearWhite;
-}
-
-function clampToPalette(c) {
-  let best = null, bd = 1e9;
-  for (const h of CFG.palette) {
-    const pc = color(h);
-    const d = dist(red(c), green(c), blue(c), red(pc), green(pc), blue(pc));
-    if (d < bd) { bd = d; best = pc; }
-  }
-  return best || c;
-}
-
-function computeLayout() {
-  const canvasAR = width / height;
-  if (layout.aspect > canvasAR) {
-    layout.w = width;
-    layout.h = width / layout.aspect;
-    layout.x = 0;
-    layout.y = (height - layout.h)/2;
-  } else {
-    layout.h = height;
-    layout.w = height * layout.aspect;
-    layout.y = 0;
-    layout.x = (width - layout.w)/2;
-  }
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);  // resize the canvas itself
+  
+  // recreate everything based on the new canvas size
+  createBgSegments();
+  createBullSegments();
+  
+  // redraw all layers
+  drawAll();
 }
